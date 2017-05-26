@@ -1,7 +1,13 @@
 # -*- coding: utf-8 -*-
 
+import time
+from selenium.common.exceptions import (
+    ElementNotVisibleException, NoSuchElementException,
+    StaleElementReferenceException, WebDriverException)
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
+from robot.libraries.BuiltIn import BuiltIn
+from robot.api import logger
 
 
 class _keywords():
@@ -33,40 +39,46 @@ class _keywords():
         self._wait_until_no_error(timeout, self._check_element_focus_exp,
                                   False, locator, timeout)
 
-    def wait_until_element_value_is(self,
-                                    locator,
-                                    expected,
-                                    strip=False,
-                                    timeout=None):
+    def wait_until_element_attribute_is(self,
+                                        locator,
+                                        expected,
+                                        attribute='value',
+                                        strip=False,
+                                        timeout=None):
         """Waits until the element identified by `locator` value is exactly the
-        expected value. You might want to use `Element Value Should Be` instead.
+        expected value for the given attribute.
 
         | *Argument* | *Description* | *Example* |
         | locator | Selenium 2 element locator | id=my_id |
-        | expected | expected value | My Name Is Slim Shady |
+        | expected | expected value | My Name Is Selenium Person |
+        | attribute | name of attribute to check | value |
         | strip | boolean, determines whether it should strip the value of the field before comparison | ${True} / ${False} |
         | timeout | maximum time to wait before the function throws an element not found error (default=None) | 5s |"""
 
         self._info("Waiting for '%s' value to be '%s'" % (locator, expected))
-        self._wait_until_no_error(timeout, self._check_element_value_exp,
-                                  False, locator, expected, strip, timeout)
+        self._wait_until_no_error(timeout, self._check_element_attribute_exp,
+                                  False, locator, expected, attribute, strip,
+                                  timeout)
 
-    def wait_until_element_value_contains(self,
-                                          locator,
-                                          expected,
-                                          timeout=None):
+    def wait_until_element_attribute_contains(self,
+                                              locator,
+                                              expected,
+                                              attribute='value',
+                                              timeout=None):
         """Waits until the element identified by `locator` contains
-        the expected value. You might want to use `Element Value Should Contain` instead.
+        the expected value for the given attribute.
 
         | *Argument* | *Description* | *Example* |
         | locator | Selenium 2 element locator | id=my_id |
-        | expected | expected value | Slim Shady |
+        | expected | expected value | Selenium Person |
+        | attribute | name of attribute to check | value |
         | timeout | maximum time to wait before the function throws an element not found error (default=None) | 5s |"""
 
         self._info("Waiting for '%s' value to contain '%s'" %
                    (locator, expected))
-        self._wait_until_no_error(timeout, self._check_element_value_exp, True,
-                                  locator, expected, False, timeout)
+        self._wait_until_no_error(timeout, self._check_element_attribute_exp,
+                                  True, locator, expected, attribute, False,
+                                  timeout)
 
     def set_element_focus(self, locator):
         """Sets focus on the element identified by `locator`. Should
@@ -192,7 +204,7 @@ class _keywords():
 
         | *Argument* | *Description* | *Example* |
         | locator | Selenium 2 element locator | id=my_id |
-        | expected | expected value | My Name Is Slim Shady |
+        | expected | expected value | My Name Is Selenium Person |
         | strip | Boolean, determines whether it should strip the field's value before comparison or not | ${True} / ${False} |"""
 
         self._info("Verifying element '%s' value is '%s'" %
@@ -216,7 +228,7 @@ class _keywords():
 
         | *Argument* | *Description* | *Example* |
         | locator | Selenium 2 element locator | id=my_id |
-        | value | value it should not be | My Name Is Slim Shady |
+        | value | value it should not be | My Name Is Selenium Person |
         | strip | Boolean, determines whether it should strip the field's value before comparison or not | ${True} / ${False} |"""
 
         self._info("Verifying element '%s' value is not '%s'" %
@@ -238,7 +250,7 @@ class _keywords():
 
         | *Argument* | *Description* | *Example* |
         | locator | Selenium 2 element locator | id=my_id |
-        | expected | expected value | Slim Shady |"""
+        | expected | expected value | Selenium Person |"""
 
         self._info("Verifying element '%s' value contains '%s'" %
                    (locator, expected))
@@ -259,7 +271,7 @@ class _keywords():
 
         | *Argument* | *Description* | *Example* |
         | locator | Selenium 2 element locator | id=my_id |
-        | value | value it should not contain | Slim Shady |"""
+        | value | value it should not contain | Selenium Person |"""
 
         self._info("Verifying element '%s' value does not contain '%s'" %
                    (locator, value))
@@ -366,6 +378,313 @@ class _keywords():
         self._wait_until_no_error(timeout, self._wait_for_click_to_succeed,
                                   locator)
 
+    def register_webdriver(self, driver, alias=None):
+        '''This lets you pass in a webdriver to the class instance for the library
+        so that you can keep the state of your current webdriver and use an updated
+        version of the custom library.
+
+        Otherwise you would have to start a new browser everytime you tweaked the
+        class and that would slow things down.
+        '''
+        self._debug("Added %s WebDriver instance with session id %s \
+                    to the register" % (driver.name, driver.session_id))
+        return self._cache.register(driver, alias)
+
+    def undo(self):
+        """
+        Simulate a CTRL+Z keypress
+        """
+        driver = self._current_browser()
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys('z').key_up(
+            Keys.CONTROL).perform()
+
+    def redo(self):
+        """
+        Simulate a CTRL+Y keypress
+        """
+        driver = self._current_browser()
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys('y').key_up(
+            Keys.CONTROL).perform()
+
+    def clear_field(self, locator):
+        """
+        This empties the text from a field when selenium's clear command
+        proves to be insufficient.
+        It carries out a series of actions:
+        1. Click on the given field.
+        2. Press Ctrl + A key combination. (Select All)
+        3. Press Delete key.
+        """
+        driver = self._current_browser()
+        field = self._element_find(locator, True, True)
+        field.click()
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys('a').key_up(
+            Keys.CONTROL).send_keys(Keys.DELETE).perform()
+
+    def send_keys(self, key, case=None):
+        """
+        This function is for when we need to trigger a key press agnostic
+        of any particular element.
+        """
+        if case == 'lower':
+            key = key.lower()
+
+        ActionChains(self._current_browser()).send_keys(key).perform()
+
+    def get_child(self, locator, xpath="/*[1]"):
+        """
+        Returns a webelement beneath the element found by 'locator' using the relative `xpath`.
+        ARGS:
+        locator - Element to use as root for the relative xpath.
+        xpath - Relative xpath from root element
+        RETURNS:
+        WebElement - first WebElement to match on xpath
+        """
+        element = self._element_find(locator, True, True)
+        try:
+            child = element.find_element_by_xpath("." + xpath)
+        except:
+            raise AssertionError("No Element was found by relative XPath %s" %
+                                 (xpath))
+
+        return child
+
+    def get_children(self, locator, xpath="/*"):
+        """
+        Returns a list of webelements beneath the element found by 'locator' using the relative `xpath`.
+        ARGS:
+        locator - Element to use as root for the relative xpath.
+        xpath - Relative xpath from root element
+        RETURNS:
+        WebElements - list of WebElements to match on xpath
+        """
+        element = self._element_find(locator, True, True)
+        return element.find_elements_by_xpath("." + xpath)
+
+    def wait_for_element_to_come_and_go(self, xpath_for_element, timeout=None):
+        '''
+        This waits for an animation or loading element (found by xpath) to come and go.
+        A Selenium WebElement object will not work.
+        '''
+        # Wait until it appears first, so that it doesn't resolve before it
+        # even has a chance to load.
+        try:
+            self.wait_until_page_contains_element(xpath_for_element, timeout)
+        except:
+            print 'Never saw the element. The test probably lagged and missed it.'
+
+        # If it never appears, then this will throw an error for us too.
+        self.wait_until_page_does_not_contain_element(xpath_for_element,
+                                                      timeout)
+
+    def _has_focus(self, locator):
+        """
+        Return True if element found by 'locator' has focus.
+        """
+        driver = self._current_browser()
+        element = self._element_find(locator, True, True)
+        focus = driver.switch_to.active_element == element
+        return focus
+
+    def wait_until_box_is_changed(self, checkbox, checked=True, timeout=None):
+        """This waits for the given checkbox to become checked or unchecked."""
+
+        if not timeout:
+            timeout = self._timeout_in_secs
+        error = "Checkbox didn't change in %d seconds" % (timeout)
+
+        waiting_function = self.return_bool
+
+        if checked:
+            condition_function = self.checkbox_should_be_selected
+        else:
+            condition_function = self.checkbox_should_not_be_selected
+
+        waiting_args = (condition_function, checkbox)
+
+        self._wait_until(timeout, error, waiting_function, *waiting_args)
+
+    def element_exists(self, locator):
+        """Returns True if the given element exists.
+        This is useful when you want to check if an element is on
+        a page without a test fail condition."""
+
+        try:
+            self.get_webelement(locator)
+            return True
+        except:
+            return False
+
+    def num_elements_on_page(self, locator):
+        """
+        This does the same thing as len(self.get_webelements(locator))
+        with one exception.  It returns a 0 instead of throwing an
+        exception when no elements are found.
+        """
+        try:
+            return len(self.get_webelements(locator))
+        except:
+            return 0
+
+    def return_bool(self, function, *args):
+        """
+        Exceptions thrown when evaluating function(*args)
+        are caught and handled by returning False.
+        It returns True if the function evaluates without throwing an error.
+        This allows for more flexibility in using Selenium2Library keywords.
+        """
+        try:
+            function(*args)
+            return True
+        except:
+            return False
+
+    def get_created(self, xpath, creator, *args):
+        """Execute creator and return a new element that matches xpath.
+        ARGS:
+        xpath (string) - XPath that should match the new element.
+        creator (method) - This is a method that will create the new element.
+        *args - Additional parameters will be passed to creator.
+
+        RETURN: (new, value)
+        new - the new WebElement matched by the xpath
+        value - the return value of creator(*args)"""
+        old_list = []
+        try:
+            # Get existing elements
+            old_list = self.get_webelements(xpath)
+        except:
+            logger.info("There were no existing matches.")
+
+        value = BuiltIn().run_keyword(creator, *args)
+
+        # Wait until there is a new match for the XPath
+        timeout = time.time() + self._timeout_in_secs
+        self.wait_until_page_contains_element(
+            xpath, None, "Never found a new element matching XPath: " + xpath)
+        new_list = self.get_webelements(xpath)
+        new = [x for x in new_list if x not in old_list]
+        return (new[0], value)
+
+    def wait_until_element_has_class(self,
+                                     locator,
+                                     expected,
+                                     timeout=None,
+                                     error=None):
+        """
+        Wait until an element identified by 'locator' has the class 'expected'.
+        """
+
+        def check_class():
+            element = self._element_find(locator, True, False)
+            actual = element.get_attribute("class").split(" ")
+            if expected in actual:
+                return
+            else:
+                return error or "Class '%s' did not appear in %s to element '%s'. " \
+                    "Its class(es) was '%s'." % (expected,
+                                                 self._format_timeout(timeout),
+                                                 locator, actual)
+
+        self._wait_until_no_error(timeout, check_class)
+
+    def wait_until_element_does_not_have_class(self,
+                                               locator,
+                                               expected,
+                                               timeout=None,
+                                               error=None):
+        """
+        Wait until an element identified by 'locator' has the class 'expected'.
+        """
+
+        def check_not_has_class():
+            element = self._element_find(locator, True, False)
+            actual = element.get_attribute("class").split(" ")
+            if expected not in actual:
+                return
+            else:
+                return error or "Class '%s' still appeared after %s in element '%s'. " \
+                    "Its class(es) were '%s'." % (expected,
+                                                  self._format_timeout(
+                                                      timeout),
+                                                  locator, actual)
+
+        self._wait_until_no_error(timeout, check_not_has_class)
+
+    def element_should_have_class(self, locator, expected, message=''):
+        """
+        Verify that element identified by 'locator' has the class 'expected'.
+        """
+
+        self._info("Verifying element '%s' has class '%s'." %
+                   (locator, expected))
+        element = self._element_find(locator, True, False)
+        actual = element.get_attribute("class").split(" ")
+        # The reason I don't use _has_class() here is because I still want to
+        # include 'actual' in the error message, but I don't want to pass this
+        # to or from _has_class().
+        if not expected in actual:
+            if not message:
+                message = "Element '%s' should have had class '%s' but "\
+                          "its class(es) was '%s'." % (
+                              locator, expected, actual)
+            raise AssertionError(message)
+
+    def element_should_not_have_class(self, locator, expected, message=''):
+        """
+        Verify that element identified by 'locator' does not have the class 'expected'.
+        """
+
+        self._info("Verifying element '%s' has class '%s'." %
+                   (locator, expected))
+        element = self._element_find(locator, True, False)
+        actual = element.get_attribute("class").split(" ")
+
+        if expected in actual:
+            if not message:
+                message = "Element '%s' should not have had class '%s' but "\
+                          "its class(es) was '%s'." % (
+                              locator, expected, actual)
+            raise AssertionError(message)
+
+    def validate_field_is_not_editable(self, locator):
+        """Checks that the field found by the given locator is not editable."""
+        field = self._element_find(locator, True, True)
+        original_text = field.text
+        self.add_text_to_prompt_field(field, "This Text Shouldn't make it")
+        BuiltIn().should_be_equal_as_strings(
+            field.text, original_text,
+            "The field proved to be editable, even though it was marked.")
+
+    def _has_class(self, locator, expected):
+        """
+        Returns True if give element has the specified class.
+        """
+        # TODO make this an instance method of the WebElement class
+        element = self._element_find(locator, True, False)
+        actual = element.get_attribute("class").split(" ")
+        if expected in actual:
+            return True
+        else:
+            return False
+
+    def select_from_list_by_text(self, locator, text):
+        """
+        Selects `text` option from the list located by `locator`.
+        """
+        element = self._element_find(locator, True, True)
+        options = element.find_elements_by_xpath(".//option")
+        option_texts = [option.text for option in options]
+        option_index = option_texts.index(text)
+        self.select_from_list_by_index(element, str(option_index))
+
+    def get_webelements_return_empty_for_none(self, locator):
+        """Don't want to fail if 'get_webelements' find none"""
+        try:
+            return self.get_webelements(locator)
+        except:
+            return []
+
     # HELPER METHODS
     def _check_element_focus_exp(self, set, locator, timeout=None):
 
@@ -395,12 +714,13 @@ class _keywords():
                 return "Element '%s' still had focus after %s while it shouldn't have" % (
                     locator, self._format_timeout(timeout))
 
-    def _check_element_value_exp(self,
-                                 partial,
-                                 locator,
-                                 expected,
-                                 strip=False,
-                                 timeout=None):
+    def _check_element_attribute_exp(self,
+                                     partial,
+                                     locator,
+                                     expected,
+                                     attribute_name='value',
+                                     strip=False,
+                                     timeout=None):
 
         if partial:
             element = self._element_find(locator, True, False)
@@ -408,16 +728,17 @@ class _keywords():
                 return "Element locator '%s' did not match any elements after %s" % (
                     locator, self._format_timeout(timeout))
 
-            value = str(element.get_attribute('value'))
+            attribute = str(element.get_attribute(attribute_name))
 
             if (strip):
-                value = value.strip()
+                attribute = attribute.strip()
 
-            if expected in value:
+            if expected in attribute:
                 return
             else:
-                return "Value '%s' did not appear in %s to element '%s'. It's value was '%s'." % (
-                    expected, self._format_timeout(timeout), locator, value)
+                return "Value '%s' of '%s' attribute did not appear in %s to element '%s'. It's '%s' attribute was '%s'." % (
+                    expected, attribute_name, self._format_timeout(timeout),
+                    locator, attribute_name, attribute)
 
         else:
             element = self._element_find(locator, True, False)
@@ -425,16 +746,17 @@ class _keywords():
                 return "Element locator '%s' did not match any elements after %s" % (
                     locator, self._format_timeout(timeout))
 
-            value = element.get_attribute('value')
+            attribute = element.get_attribute(attribute_name)
 
             if (strip):
-                value = value.strip()
+                attribute = attribute.strip()
 
-            if str(value) == expected:
+            if str(attribute) == expected:
                 return
             else:
-                return "Element '%s' value was not %s after %s" % (
-                    locator, expected, self._format_timeout(timeout))
+                return "Element '%s' attribute '%s' value was not %s after %s" % (
+                    locator, attribute_name, expected,
+                    self._format_timeout(timeout))
 
     def _check_element_focus(self, set, locator):
 
@@ -524,3 +846,8 @@ class _keywords():
             return "Couldn't find the element '%s', click operation failed" % locator
 
         element.click()
+
+    def blur(self, locator):
+        """Removes focus from element identified by `locator`."""
+        element = self._element_find(locator, True, True)
+        self._current_browser().execute_script("arguments[0].blur();", element)

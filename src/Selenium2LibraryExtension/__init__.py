@@ -69,3 +69,20 @@ class Selenium2LibraryExtension(Selenium2Library, _patches, _keywords):
 
     def _locator_find_first_by_tag(self, browser, criteria, tag, constraints):
         return browser.execute_script("return $('%s:first');" % criteria)
+
+    def _add_new_function_as_class_attribute(self, new_function):
+        '''
+        This is a helper method for developing tests in the REPL.
+        This adds the new function to the current instance of the class
+        so you can use it.  It allows you to write functions exactly as you
+        would if they were in the class.  That way you can just cut and
+        paste them into the source code as is when you're done developing.
+        '''
+        try:
+            driver = self._current_browser()
+            setattr(Selenium2LibraryExtension, new_function.func_name,
+                    new_function)
+            self = Selenium2LibraryExtension()
+            self.register_webdriver(driver)
+        except (AttributeError, TypeError):
+            raise AssertionError('Parameter should be a function')

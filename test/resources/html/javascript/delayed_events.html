@@ -1,0 +1,62 @@
+<html>
+    <head>
+    <title>Original</title>
+    <script type="text/javascript">
+    function modifyAfterDelay() {
+        setTimeout('addElement()', 1000)
+        setTimeout('removeElement()', 1000)
+        setTimeout('changeContent()', 1000)
+        setTimeout('changeTitle()', 1000)
+        setTimeout('unhideContent()', 1000)
+        setTimeout('enableContent()', 1000)
+        setTimeout('replaceClass()', 1000)
+        setTimeout('changeFocus()', 1000)
+    }
+    
+    function addElement() {
+      var div = document.createElement('div')
+      div.setAttribute('id', 'new div')
+      div.innerHTML = 'New Element'
+      document.getElementById("container").appendChild(div)
+    }
+
+    function removeElement() {
+      document.getElementById("not_present").remove()
+    }
+
+    function changeTitle() {
+        document.title = "Changed"
+        document.bgColor = '#FF00FF'
+    }
+    
+    function changeContent() {
+        document.getElementById("content").firstChild.nodeValue = "New Content"
+    }
+
+    function unhideContent() {
+        document.getElementById("hidden").style.display = "block"
+    }
+    function enableContent() {
+        document.getElementById("disabled").disabled = false;
+    }
+    function replaceClass() {
+        document.getElementById("class_changer").classList.add("new_class");
+        document.getElementById("class_changer").classList.remove("old_class");
+    }
+    function changeFocus() {
+        document.getElementById("next_focus").focus();
+    }
+    </script>
+    </head>
+    
+    <body onload="modifyAfterDelay()">
+    <div id="content">This is content</div>
+    <div id="container"></div>
+    <div id="not_present">Element that should disappear</div>
+    <div id="hidden" style="display:none;">Initially hidden content</div>
+    <div id="class_changer" class="old_class">This element will acquire the 'new_class' class and lose the 'old_class' class</div>
+    <button id="disabled" disabled>Initially disabled content</button>
+    <input id="auto_focus" value="This field has autofocus" autofocus></input>
+    <input id="next_focus" value="This field will receive focus"></input>
+    </body>
+</html>

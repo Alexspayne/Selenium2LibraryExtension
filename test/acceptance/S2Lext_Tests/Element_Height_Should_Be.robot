@@ -1,0 +1,12 @@
+*** Settings ***
+Test Setup        Open Browser to Extension Page
+Test Teardown     Close Browser
+Resource          ../resource.robot
+
+*** Test Cases ***
+Expected Height
+    Element Height Should Be    id=div_01    254
+
+Unexpected Height
+    ${ErrorMsg}=    Run Keyword And Expect Error    *    Element Height Should Be    id=div_01    666
+    Should Contain    ${ErrorMsg}    The height of element 'id=div_01' should have been '666' but in fact it was '254'

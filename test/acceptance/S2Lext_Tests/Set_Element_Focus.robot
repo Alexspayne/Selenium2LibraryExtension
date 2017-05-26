@@ -1,0 +1,13 @@
+*** Settings ***
+Test Setup        Open Browser to Extension Page
+Test Teardown     Close Browser
+Resource          ../resource.robot
+
+*** Test Cases ***
+Expected Focus
+    Set Element Focus    id=input_01
+    Wait Until Element Has Focus    id=input_01
+
+Unexpected Focus
+    ${ErrorMsg}=    Run Keyword And Expect Error    *    Set Element Focus    id=div_01
+    Should Contain    ${ErrorMsg}    cannot focus element
